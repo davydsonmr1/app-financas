@@ -1,15 +1,17 @@
-import { Pressable, Text, View } from 'react-native';
+import { Image, Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, spacing } from '@/constants/theme';
 import { useSpace } from '@/lib/space-context';
+import { useAuth } from '@/lib/auth-context';
 
 export function SpaceHeader() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { activeSpace, spaces } = useSpace();
+  const { profile } = useAuth();
 
   return (
     <View
@@ -37,9 +39,14 @@ export function SpaceHeader() {
             backgroundColor: activeSpace?.color ?? t.primary,
             alignItems: 'center',
             justifyContent: 'center',
+            overflow: 'hidden',
           }}
         >
-          <Ionicons name={(activeSpace?.icon as any) ?? 'home'} size={17} color="#fff" />
+          {activeSpace?.photo_url ? (
+            <Image source={{ uri: activeSpace.photo_url }} style={{ width: '100%', height: '100%' }} />
+          ) : (
+            <Ionicons name={(activeSpace?.icon as any) ?? 'home'} size={17} color="#fff" />
+          )}
         </View>
         <Text style={{ color: t.text, fontSize: 17, fontWeight: '700' }} numberOfLines={1}>
           {activeSpace?.name ?? 'Carregando…'}
@@ -49,8 +56,16 @@ export function SpaceHeader() {
         ) : null}
       </Pressable>
 
-      <Pressable onPress={() => router.push('/perfil' as any)} hitSlop={8}>
-        <Ionicons name="person-circle-outline" size={26} color={t.textMuted} />
+      <Pressable
+        onPress={() => router.push('/perfil' as any)}
+        hitSlop={8}
+        style={{ width: 28, height: 28, borderRadius: 14, overflow: 'hidden' }}
+      >
+        {profile?.avatar_url ? (
+          <Image source={{ uri: profile.avatar_url }} style={{ width: '100%', height: '100%' }} />
+        ) : (
+          <Ionicons name="person-circle-outline" size={28} color={t.textMuted} />
+        )}
       </Pressable>
     </View>
   );

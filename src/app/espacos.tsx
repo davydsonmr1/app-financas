@@ -1,18 +1,38 @@
 import { useState } from 'react';
-import { Alert, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useTheme, spacing, radius } from '@/constants/theme';
-import { useSpace } from '@/lib/space-context';
+import { useSpace, type SpaceWithRole } from '@/lib/space-context';
 import { Body, Button, Card, Label, Screen, TextField } from '@/components/ui';
+import { supabase } from '@/lib/supabase';
+import { pickAndUploadImage } from '@/lib/storage';
 
 export default function EspacosScreen() {
   const t = useTheme();
   const router = useRouter();
-  const { spaces, activeSpace, setActiveSpaceId, createSpace, joinSpace } = useSpace();
+  const { spaces, activeSpace, setActiveSpaceId, createSpace, joinSpace, refresh } = useSpace();
 
   const [mode, setMode] = useState<'list' | 'create' | 'join'>('list');
+  const [uploadingFor, setUploadingFor] = useState<string | null>(null);
+
+  const handleChangePhoto = async (space: SpaceWithRole) => {
+    setUploadingFor(space.id);
+    try {
+      const { url, error } = await pickAndUploadImage('space-photos', space.id);
+      if (error) {
+        Alert.alert('Não foi possível enviar a foto', error);
+        return;
+      }
+      if (url) {
+        await supabase.from('spaces').update({ photo_url: url }).eq('id', space.id);
+        await refresh();
+      }
+    } finally {
+      setUploadingFor(null);
+    }
+  };
 
   return (
     <Screen>
@@ -23,10 +43,6 @@ export default function EspacosScreen() {
               {spaces.map((s) => (
                 <View
                   key={s.id}
-                  onTouchEnd={() => {
-                    setActiveSpaceId(s.id);
-                    router.back();
-                  }}
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
@@ -39,18 +55,49 @@ export default function EspacosScreen() {
                   }}
                 >
                   <View
+                    onTouchEnd={s.role === 'owner' ? () => handleChangePhoto(s) : undefined}
                     style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 10,
+                      width: 40,
+                      height: 40,
+                      borderRadius: 12,
                       backgroundColor: s.color,
                       alignItems: 'center',
                       justifyContent: 'center',
+                      overflow: 'hidden',
                     }}
                   >
-                    <Ionicons name={s.icon as any} size={18} color="#fff" />
+                    {uploadingFor === s.id ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : s.photo_url ? (
+                      <Image source={{ uri: s.photo_url }} style={{ width: '100%', height: '100%' }} />
+                    ) : (
+                      <Ionicons name={s.icon as any} size={19} color="#fff" />
+                    )}
+                    {s.role === 'owner' && !uploadingFor ? (
+                      <View
+                        style={{
+                          position: 'absolute',
+                          bottom: -1,
+                          right: -1,
+                          backgroundColor: t.primary,
+                          borderRadius: 6,
+                          width: 14,
+                          height: 14,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Ionicons name="camera" size={9} color="#fff" />
+                      </View>
+                    ) : null}
                   </View>
-                  <View style={{ flex: 1 }}>
+                  <View
+                    style={{ flex: 1 }}
+                    onTouchEnd={() => {
+                      setActiveSpaceId(s.id);
+                      router.back();
+                    }}
+                  >
                     <Text style={{ color: t.text, fontWeight: '600', fontSize: 15 }}>{s.name}</Text>
                     <Text style={{ color: t.textMuted, fontSize: 12 }}>
                       {s.is_personal ? 'Pessoal' : s.role === 'owner' ? 'Você criou' : 'Membro'}
@@ -100,8 +147,26 @@ export default function EspacosScreen() {
           </>
         )}
 
-        {mode === 'create' && <CreateSpaceForm onDone={() => { setMode('list'); router.back(); }} onCancel={() => setMode('list')} createSpace={createSpace} />}
-        {mode === 'join' && <JoinSpaceForm onDone={() => { setMode('list'); router.back(); }} onCancel={() => setMode('list')} joinSpace={joinSpace} />}
+        {mode === 'create' && (
+          <CreateSpaceForm
+            onDone={() => {
+              setMode('list');
+              router.back();
+            }}
+            onCancel={() => setMode('list')}
+            createSpace={createSpace}
+          />
+        )}
+        {mode === 'join' && (
+          <JoinSpaceForm
+            onDone={() => {
+              setMode('list');
+              router.back();
+            }}
+            onCancel={() => setMode('list')}
+            joinSpace={joinSpace}
+          />
+        )}
       </ScrollView>
     </Screen>
   );
@@ -114,12 +179,15 @@ function CreateSpaceForm({
 }: {
   onDone: () => void;
   onCancel: () => void;
-  createSpace: (name: string, password?: string) => Promise<{ error: string | null }>;
+  createSpace: (name: string, password?: string) => Promise<{ error: string | null; id: string | null }>;
 }) {
+  const t = useTheme();
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [createdId, setCreatedId] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const handleCreate = async () => {
     if (!name.trim()) {
@@ -127,11 +195,41 @@ function CreateSpaceForm({
       return;
     }
     setLoading(true);
-    const { error } = await createSpace(name.trim(), password.trim() || undefined);
+    const { error, id } = await createSpace(name.trim(), password.trim() || undefined);
     setLoading(false);
     if (error) setError(error);
-    else onDone();
+    else setCreatedId(id);
   };
+
+  const handleAddPhoto = async () => {
+    if (!createdId) return;
+    setUploadingPhoto(true);
+    try {
+      const { url, error } = await pickAndUploadImage('space-photos', createdId);
+      if (error) {
+        Alert.alert('Não foi possível enviar a foto', error);
+        return;
+      }
+      if (url) await supabase.from('spaces').update({ photo_url: url }).eq('id', createdId);
+      onDone();
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  if (createdId) {
+    return (
+      <View style={{ gap: spacing.md, alignItems: 'center' }}>
+        <Ionicons name="checkmark-circle" size={40} color={t.positive} />
+        <Text style={{ color: t.text, fontSize: 16, fontWeight: '600' }}>"{name}" criado!</Text>
+        <Body style={{ textAlign: 'center', color: t.textMuted }}>
+          Quer adicionar uma foto de capa pra esse Espaço? Pode fazer isso depois também.
+        </Body>
+        <Button title="Escolher foto" onPress={handleAddPhoto} loading={uploadingPhoto} style={{ width: '100%' }} />
+        <Button title="Pular por agora" onPress={onDone} variant="ghost" style={{ width: '100%' }} />
+      </View>
+    );
+  }
 
   return (
     <View style={{ gap: spacing.md }}>

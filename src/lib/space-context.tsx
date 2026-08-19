@@ -14,7 +14,7 @@ type SpaceState = {
   members: MemberWithProfile[];
   setActiveSpaceId: (id: string) => void;
   refresh: () => Promise<void>;
-  createSpace: (name: string, password?: string) => Promise<{ error: string | null }>;
+  createSpace: (name: string, password?: string) => Promise<{ error: string | null; id: string | null }>;
   joinSpace: (inviteCode: string, password?: string) => Promise<{ error: string | null }>;
 };
 
@@ -119,10 +119,10 @@ export function SpaceProvider({ children }: { children: ReactNode }) {
         p_name: name,
         p_password: password || null,
       });
-      if (error) return { error: error.message };
+      if (error) return { error: error.message, id: null };
       await refresh();
       if (data) setActiveSpaceId(data as string);
-      return { error: null };
+      return { error: null, id: (data as string) ?? null };
     },
     joinSpace: async (inviteCode, password) => {
       const { data, error } = await supabase.rpc('join_space', {

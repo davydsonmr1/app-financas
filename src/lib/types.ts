@@ -14,6 +14,7 @@ export type Space = {
   name: string;
   icon: string;
   color: string;
+  photo_url: string | null;
   owner_id: string;
   has_password: boolean;
   is_personal: boolean;

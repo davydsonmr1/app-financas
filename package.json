@@ -12,8 +12,10 @@
     "expo-constants": "~18.0.14",
     "expo-crypto": "~15.0.9",
     "expo-device": "~8.0.10",
+    "expo-file-system": "~19.0.24",
     "expo-font": "~14.0.12",
     "expo-image": "~3.0.11",
+    "expo-image-picker": "~17.0.11",
     "expo-linking": "~8.0.12",
     "expo-notifications": "~0.32.17",
     "expo-router": "~6.0.24",
@@ -33,10 +35,10 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
-    "typescript": "~5.9.2",
-    "pg": "^8.13.1",
     "dotenv": "^16.4.5",
-    "react-dom": "19.1.0"
+    "pg": "^8.13.1",
+    "react-dom": "19.1.0",
+    "typescript": "~5.9.2"
   },
   "scripts": {
     "start": "expo start",

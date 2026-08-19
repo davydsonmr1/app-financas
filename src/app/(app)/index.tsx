@@ -1,338 +1,168 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, Text, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { ScrollView, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme, spacing, radius } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
 import { useSpace } from '@/lib/space-context';
-import { Body, Card, Chip, Heading, Label, Screen } from '@/components/ui';
-import { PieChart, PieLegend } from '@/components/pie-chart';
-import { getRange, navigate, monthRange, todayISO, type PeriodKind } from '@/lib/period';
-import { getCategories, getIncomesForUsers, getTransactions, upcomingThisMonth } from '@/lib/queries';
-import {
-  calcSummary,
-  formatBRL,
-  formatPct,
-  incomeForRange,
-  pieByAttribution,
-  pieByCategory,
-  topCategoryDeltas,
-} from '@/lib/dashboard-calc';
-import type { Category, TransactionWithEffective } from '@/lib/types';
+import { Body, Card, Heading, Label, Screen } from '@/components/ui';
+import { getTransactions } from '@/lib/queries';
+import { todayISO } from '@/lib/period';
 
-const PERIODS: { key: PeriodKind; label: string }[] = [
-  { key: 'day', label: 'Dia' },
-  { key: 'week', label: 'Semana' },
-  { key: 'month', label: 'Mês' },
-];
-
-export default function DashboardScreen() {
+export default function InicioScreen() {
   const t = useTheme();
   const router = useRouter();
-  const { session } = useAuth();
-  const { activeSpace, members } = useSpace();
-
-  const [periodKind, setPeriodKind] = useState<PeriodKind>('month');
-  const [refISO, setRefISO] = useState(todayISO());
-  const [attributionFilter, setAttributionFilter] = useState<'all' | 'casa' | string>('all');
-  const [pieMode, setPieMode] = useState<'category' | 'attribution'>('category');
-
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [txs, setTxs] = useState<TransactionWithEffective[]>([]);
-  const [prevTxs, setPrevTxs] = useState<TransactionWithEffective[]>([]);
-  const [monthTxs, setMonthTxs] = useState<TransactionWithEffective[]>([]);
-  const [incomeTotal, setIncomeTotal] = useState(0);
-  const [upcoming, setUpcoming] = useState<{ count: number; total: number }>({ count: 0, total: 0 });
-  const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  const range = useMemo(() => getRange(periodKind, refISO), [periodKind, refISO]);
-  const mRange = useMemo(() => monthRange(refISO), [refISO]);
-
-  const load = useCallback(async () => {
-    if (!activeSpace || !session) return;
-    setLoading(true);
-    try {
-      const cats = await getCategories(activeSpace.id);
-      setCategories(cats);
-
-      const prevLen = range.days;
-      const prevTo = shiftDays(range.from, -1);
-      const prevFrom = shiftDays(prevTo, -(prevLen - 1));
-
-      const [current, previous, monthData] = await Promise.all([
-        getTransactions({ spaceId: activeSpace.id, from: range.from, to: range.to }),
-        getTransactions({ spaceId: activeSpace.id, from: prevFrom, to: prevTo }),
-        getTransactions({ spaceId: activeSpace.id, from: mRange.from, to: mRange.to }),
-      ]);
-      setTxs(current);
-      setPrevTxs(previous);
-      setMonthTxs(monthData);
-
-      const sharingIds = members.filter((m) => m.share_income).map((m) => m.id);
-      const incomes = sharingIds.length ? await getIncomesForUsers(sharingIds) : [];
-      setIncomeTotal(incomeForRange(incomes, range));
-
-      setUpcoming(await upcomingThisMonth(activeSpace.id, mRange, monthData, todayISO()));
-    } finally {
-      setLoading(false);
-    }
-  }, [activeSpace, session, range, mRange, members]);
+  const { profile } = useAuth();
+  const { activeSpace, spaces } = useSpace();
+  const [lancouHoje, setLancouHoje] = useState<boolean | null>(null);
 
   useFocusEffect(
     useCallback(() => {
-      load();
-    }, [load]),
+      if (!activeSpace) return;
+      const today = todayISO();
+      getTransactions({ spaceId: activeSpace.id, from: today, to: today })
+        .then((txs) => setLancouHoje(txs.length > 0))
+        .catch(() => setLancouHoje(null));
+    }, [activeSpace]),
   );
 
-  const attributionOptions = useMemo(() => {
-    const meFirst = [...members].sort((a, b) => (a.id === session?.user.id ? -1 : 1));
-    return [
-      { key: 'all', label: 'Tudo' },
-      ...meFirst.map((m) => ({
-        key: m.id,
-        label: m.id === session?.user.id ? 'Eu' : m.display_name || 'Membro',
-      })),
-      { key: 'casa', label: 'Casa' },
-    ];
-  }, [members, session]);
-
-  const filteredTxs = useMemo(() => {
-    if (attributionFilter === 'all') return txs;
-    if (attributionFilter === 'casa') return txs.filter((tx) => tx.attributed_to === null);
-    return txs.filter((tx) => tx.attributed_to === attributionFilter);
-  }, [txs, attributionFilter]);
-
-  const summary = useMemo(
-    () => calcSummary(filteredTxs, attributionFilter === 'all' ? incomeTotal : 0),
-    [filteredTxs, incomeTotal, attributionFilter],
-  );
-
-  const pieData = useMemo(
-    () =>
-      pieMode === 'category'
-        ? pieByCategory(filteredTxs, categories, 'expense')
-        : pieByAttribution(filteredTxs, members, 'expense'),
-    [pieMode, filteredTxs, categories, members],
-  );
-
-  const deltas = useMemo(
-    () => topCategoryDeltas(filteredTxs, prevTxs, categories, 5),
-    [filteredTxs, prevTxs, categories],
-  );
+  const saudacao = useSaudacao();
+  const primeiroNome = (profile?.display_name || '').split(' ')[0] || 'você';
 
   return (
     <Screen>
-      <ScrollView
-        contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: 120 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={async () => {
-              setRefreshing(true);
-              await load();
-              setRefreshing(false);
-            }}
-            tintColor={t.primary}
-          />
-        }
-      >
-        {/* Seletor de período */}
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          {PERIODS.map((p) => (
-            <Chip
-              key={p.key}
-              label={p.label}
-              selected={periodKind === p.key}
-              onPress={() => setPeriodKind(p.key)}
-            />
-          ))}
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: 60 }}>
+        <View>
+          <Heading style={{ fontSize: 24 }}>{saudacao}, {primeiroNome}</Heading>
+          <Body style={{ color: t.textMuted, marginTop: 2 }}>
+            {activeSpace ? `Você está no Espaço "${activeSpace.name}"` : 'Carregando seu Espaço…'}
+          </Body>
         </View>
-
-        <Card style={{ paddingVertical: spacing.md }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Ionicons
-              name="chevron-back"
-              size={22}
-              color={t.text}
-              onPress={() => setRefISO((r) => navigate(periodKind, r, -1))}
-              suppressHighlighting
-            />
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{ color: t.text, fontWeight: '700', fontSize: 15, textAlign: 'center' }}>
-                {range.label}
-              </Text>
-              {range.partial ? (
-                <Text style={{ color: t.warn, fontSize: 11, marginTop: 2 }}>
-                  parcial · {range.days} {range.days === 1 ? 'dia' : 'dias'}
-                </Text>
-              ) : null}
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={22}
-              color={t.text}
-              onPress={() => setRefISO((r) => navigate(periodKind, r, 1))}
-              suppressHighlighting
-            />
-          </View>
-        </Card>
-
-        {/* Filtro de atribuição */}
-        {members.length > 1 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-              {attributionOptions.map((opt) => (
-                <Chip
-                  key={opt.key}
-                  label={opt.label}
-                  selected={attributionFilter === opt.key}
-                  onPress={() => setAttributionFilter(opt.key)}
-                />
-              ))}
-            </View>
-          </ScrollView>
-        ) : null}
-
-        {/* Cards resumo */}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-          <SummaryCard label="Entrou" value={summary.entrou} color={t.positive} icon="arrow-down-circle" />
-          <SummaryCard label="Saiu" value={summary.saiu} color={t.negative} icon="arrow-up-circle" />
-          <SummaryCard label="Investido" value={summary.investido} color={t.invest} icon="trending-up" />
-          <SummaryCard
-            label="Sobra"
-            value={summary.sobra}
-            color={summary.sobra >= 0 ? t.positive : t.negative}
-            icon="wallet"
-            wide
-            subtitle={summary.entrou > 0 ? `${formatPct((summary.sobra / summary.entrou) * 100)} da renda` : undefined}
-          />
-        </View>
-
-        {upcoming.count > 0 ? (
-          <Card style={{ backgroundColor: t.surfaceAlt, borderStyle: 'dashed' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-              <Ionicons name="time-outline" size={20} color={t.warn} />
-              <View style={{ flex: 1 }}>
-                <Label>Ainda vai sair esse mês</Label>
-                <Text style={{ color: t.text, fontSize: 18, fontWeight: '700' }}>
-                  {formatBRL(upcoming.total)}
-                </Text>
-                <Text style={{ color: t.textMuted, fontSize: 12 }}>{upcoming.count} pendências</Text>
-              </View>
-            </View>
-          </Card>
-        ) : null}
-
-        {/* Pizza */}
-        <Card>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Heading style={{ fontSize: 16 }}>Despesas</Heading>
-            {members.length > 1 ? (
-              <View style={{ flexDirection: 'row', gap: spacing.xs }}>
-                <Chip label="Categoria" selected={pieMode === 'category'} onPress={() => setPieMode('category')} />
-                <Chip label="Atribuição" selected={pieMode === 'attribution'} onPress={() => setPieMode('attribution')} />
-              </View>
-            ) : null}
-          </View>
-          <PieChart
-            slices={pieData}
-            onSlicePress={(s) =>
-              router.push({ pathname: '/lancamentos', params: { categoryId: pieMode === 'category' ? s.key : undefined } } as any)
-            }
-          />
-          <PieLegend slices={pieData} />
-        </Card>
-
-        {/* Top categorias com variação */}
-        {deltas.length > 0 ? (
-          <Card>
-            <Heading style={{ fontSize: 16, marginBottom: spacing.sm }}>Maiores categorias</Heading>
-            <View style={{ gap: spacing.sm }}>
-              {deltas.map((d) => (
-                <View key={d.categoryId} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: d.color }} />
-                  <Body style={{ flex: 1 }}>{d.label}</Body>
-                  <Text style={{ color: t.text, fontWeight: '600', fontSize: 14 }}>{formatBRL(d.current)}</Text>
-                  {d.deltaPct !== null ? (
-                    <Text
-                      style={{
-                        color: d.deltaPct > 0 ? t.negative : t.positive,
-                        fontSize: 12,
-                        width: 52,
-                        textAlign: 'right',
-                      }}
-                    >
-                      {d.deltaPct > 0 ? '↑' : '↓'} {formatPct(Math.abs(d.deltaPct))}
-                    </Text>
-                  ) : (
-                    <Text style={{ color: t.textMuted, fontSize: 12, width: 52, textAlign: 'right' }}>novo</Text>
-                  )}
-                </View>
-              ))}
-            </View>
-          </Card>
-        ) : null}
 
         <Card
-          style={{ borderStyle: 'dashed' }}
-          {...({ onTouchEnd: () => router.push('/comparacao' as any) } as any)}
+          style={{
+            backgroundColor: lancouHoje ? t.surface : t.surfaceAlt,
+            borderColor: lancouHoje ? t.border : t.warn,
+          }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-            <Ionicons name="stats-chart" size={18} color={t.primary} />
-            <Body style={{ flex: 1 }}>Comparar com outro mês</Body>
-            <Ionicons name="chevron-forward" size={18} color={t.textMuted} />
+            <Ionicons
+              name={lancouHoje ? 'checkmark-circle' : 'alert-circle-outline'}
+              size={22}
+              color={lancouHoje ? t.positive : t.warn}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: t.text, fontWeight: '600', fontSize: 14 }}>
+                {lancouHoje === null ? 'Verificando…' : lancouHoje ? 'Já lançou algo hoje 🎉' : 'Ainda não lançou nada hoje'}
+              </Text>
+              <Text style={{ color: t.textMuted, fontSize: 12, marginTop: 2 }}>
+                {lancouHoje ? 'Continue assim — é isso que faz o dashboard valer a pena.' : 'Leva menos de 10 segundos. Não deixe acumular.'}
+              </Text>
+            </View>
           </View>
         </Card>
 
-        {loading ? <Text style={{ color: t.textMuted, textAlign: 'center' }}>Carregando…</Text> : null}
+        <View style={{ gap: spacing.sm }}>
+          <QuickAction
+            icon="remove-circle"
+            iconColor={t.negative}
+            title="Lançar despesa"
+            subtitle="Mercado, contas, compras…"
+            onPress={() => router.push('/despesas')}
+          />
+          <QuickAction
+            icon="add-circle"
+            iconColor={t.positive}
+            title="Lançar receita ou investimento"
+            subtitle="Salário extra, freela, aporte…"
+            onPress={() => router.push('/receitas')}
+          />
+          <QuickAction
+            icon="pie-chart"
+            iconColor={t.primary}
+            title="Ver dashboard"
+            subtitle="Resumo do período, gráficos, comparação"
+            onPress={() => router.push('/dashboard')}
+          />
+        </View>
+
+        <Card>
+          <Label>Como o app funciona</Label>
+          <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
+            <InfoRow
+              icon="layers-outline"
+              text={`Cada Espaço é um contexto separado.${spaces.length > 1 ? ` Você está em ${spaces.length} Espaços — troque pelo topo da tela.` : ' Você pode criar outros pela aba Perfil.'}`}
+            />
+            <InfoRow
+              icon="people-outline"
+              text="Num Espaço compartilhado, os gastos ficam num caixa único, marcados como Eu, do outro membro, ou Casa."
+            />
+            <InfoRow
+              icon="sparkles-outline"
+              text='Na aba IA você pode perguntar "quanto gastei esse mês?" ou lançar direto por texto: "gastei 50 no mercado".'
+            />
+            <InfoRow
+              icon="lock-closed-outline"
+              text="Sem integração bancária — tudo é lançado manualmente, por design."
+            />
+          </View>
+        </Card>
       </ScrollView>
     </Screen>
   );
 }
 
-function SummaryCard({
-  label,
-  value,
-  color,
+function QuickAction({
   icon,
-  wide,
+  iconColor,
+  title,
   subtitle,
+  onPress,
 }: {
-  label: string;
-  value: number;
-  color: string;
   icon: keyof typeof Ionicons.glyphMap;
-  wide?: boolean;
-  subtitle?: string;
+  iconColor: string;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
 }) {
   const t = useTheme();
   return (
     <View
+      onTouchEnd={onPress}
       style={{
-        flexBasis: wide ? '100%' : '48%',
-        flexGrow: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
         backgroundColor: t.surface,
         borderWidth: 1,
         borderColor: t.border,
-        borderRadius: radius.lg,
+        borderRadius: radius.md,
         padding: spacing.md,
       }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-        <Ionicons name={icon} size={15} color={color} />
-        <Label>{label}</Label>
+      <Ionicons name={icon} size={28} color={iconColor} />
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: t.text, fontWeight: '600', fontSize: 15 }}>{title}</Text>
+        <Text style={{ color: t.textMuted, fontSize: 12 }}>{subtitle}</Text>
       </View>
-      <Text style={{ color: t.text, fontSize: 19, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit>
-        {formatBRL(value)}
-      </Text>
-      {subtitle ? <Text style={{ color: t.textMuted, fontSize: 11, marginTop: 2 }}>{subtitle}</Text> : null}
+      <Ionicons name="chevron-forward" size={18} color={t.textMuted} />
     </View>
   );
 }
 
-function shiftDays(iso: string, n: number): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  const date = new Date(y, m - 1, d + n);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+function InfoRow({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
+  const t = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' }}>
+      <Ionicons name={icon} size={16} color={t.textMuted} style={{ marginTop: 2 }} />
+      <Text style={{ color: t.textMuted, fontSize: 13, flex: 1, lineHeight: 18 }}>{text}</Text>
+    </View>
+  );
+}
+
+function useSaudacao(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Bom dia';
+  if (hour < 18) return 'Boa tarde';
+  return 'Boa noite';
 }

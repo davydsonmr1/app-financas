@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ScrollView, Switch, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme, spacing, radius } from '@/constants/theme';
@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useSpace } from '@/lib/space-context';
 import { Body, Button, Card, Label, Screen, TextField } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { pickAndUploadImage } from '@/lib/storage';
 import {
   cancelDailyReminder,
   getReminderTime,
@@ -21,6 +22,7 @@ export default function PerfilScreen() {
 
   const [name, setName] = useState(profile?.display_name ?? '');
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [reminderOn, setReminderOn] = useState(false);
   const [reminderHour, setReminderHour] = useState(20);
 
@@ -70,12 +72,53 @@ export default function PerfilScreen() {
 
   const myShareSetting = members.find((m) => m.id === session?.user.id);
 
+  const handlePickAvatar = async () => {
+    if (!session) return;
+    setUploadingAvatar(true);
+    try {
+      const { url, error } = await pickAndUploadImage('avatars', session.user.id);
+      if (error) {
+        Alert.alert('Não foi possível enviar a foto', error);
+        return;
+      }
+      if (url) {
+        await supabase.from('profiles').update({ avatar_url: url }).eq('id', session.user.id);
+        await refreshProfile();
+      }
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: 60 }}>
-        <Card>
-          <Label>Nome</Label>
-          <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs }}>
+        <Card style={{ alignItems: 'center' }}>
+          <View
+            onTouchEnd={handlePickAvatar}
+            style={{
+              width: 84,
+              height: 84,
+              borderRadius: 42,
+              backgroundColor: t.surfaceAlt,
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              borderWidth: 2,
+              borderColor: t.primary,
+            }}
+          >
+            {uploadingAvatar ? (
+              <ActivityIndicator color={t.primary} />
+            ) : profile?.avatar_url ? (
+              <Image source={{ uri: profile.avatar_url }} style={{ width: '100%', height: '100%' }} />
+            ) : (
+              <Ionicons name="camera" size={26} color={t.textMuted} />
+            )}
+          </View>
+          <Text style={{ color: t.textMuted, fontSize: 11, marginTop: spacing.xs }}>Toque para trocar a foto</Text>
+
+          <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md, width: '100%' }}>
             <TextField value={name} onChangeText={setName} style={{ flex: 1 }} />
             <Button title="Salvar" onPress={handleSaveName} loading={saving} variant="secondary" />
           </View>

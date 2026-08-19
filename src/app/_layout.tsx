@@ -51,10 +51,6 @@ function RootNavigator() {
       <Stack.Screen name="(app)" />
       <Stack.Screen name="login" />
       <Stack.Screen
-        name="novo"
-        options={{ presentation: 'modal', headerShown: true, title: 'Novo lançamento' }}
-      />
-      <Stack.Screen
         name="espacos"
         options={{ presentation: 'modal', headerShown: true, title: 'Meus espaços' }}
       />
