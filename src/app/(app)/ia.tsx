@@ -1,11 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Text,
-  View,
-} from 'react-native';
+import { FlatList, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme, spacing, radius } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
@@ -16,6 +10,7 @@ import { askAi, type AiProposal } from '@/lib/ai';
 import { getCategories } from '@/lib/queries';
 import { enqueueTransaction, generateId } from '@/lib/offline-queue';
 import { formatBRL } from '@/lib/dashboard-calc';
+import { useKeyboardHeight } from '@/lib/use-keyboard-height';
 import type { Category } from '@/lib/types';
 
 type ChatMessage = {
@@ -37,6 +32,7 @@ export default function IaChatScreen() {
   const { session } = useAuth();
   const { activeSpace, members } = useSpace();
   const listRef = useRef<FlatList>(null);
+  const keyboardHeight = useKeyboardHeight();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -133,7 +129,9 @@ export default function IaChatScreen() {
 
   return (
     <Screen>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      {/* marginBottom manual em vez de KeyboardAvoidingView — ver use-keyboard-height.ts
+          pra entender por que o comportamento automático não funciona nesta tela. */}
+      <View style={{ flex: 1, marginBottom: keyboardHeight }}>
         {messages.length === 0 ? (
           <View style={{ padding: spacing.lg, gap: spacing.sm }}>
             <Body style={{ color: t.textMuted }}>Pergunte sobre seus gastos ou lance algo por texto:</Body>
@@ -220,7 +218,7 @@ export default function IaChatScreen() {
           />
           <Button title="Enviar" onPress={() => handleSend()} loading={sending} />
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Screen>
   );
 }

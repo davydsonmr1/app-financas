@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme, spacing } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
+import { useKeyboardHeight } from '@/lib/use-keyboard-height';
 import { Body, Button, Screen, TextField } from '@/components/ui';
 
 export default function SignupScreen() {
   const t = useTheme();
   const router = useRouter();
   const { signUp } = useAuth();
+  const keyboardHeight = useKeyboardHeight();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -65,7 +67,7 @@ export default function SignupScreen() {
 
   return (
     <Screen>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <View style={{ flex: 1, marginBottom: keyboardHeight }}>
         <ScrollView
           contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: spacing.xl }}
           keyboardShouldPersistTaps="handled"
@@ -110,7 +112,7 @@ export default function SignupScreen() {
             <Button title="Já tenho conta" onPress={() => router.back()} variant="ghost" />
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </View>
     </Screen>
   );
 }

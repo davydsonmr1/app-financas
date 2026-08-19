@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme, spacing } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
+import { useKeyboardHeight } from '@/lib/use-keyboard-height';
 import { Button, Divider, Screen, TextField } from '@/components/ui';
 
 export default function LoginScreen() {
@@ -14,6 +15,7 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const keyboardHeight = useKeyboardHeight();
 
   const handleSubmit = async () => {
     setError(null);
@@ -37,10 +39,7 @@ export default function LoginScreen() {
 
   return (
     <Screen>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <View style={{ flex: 1, marginBottom: keyboardHeight }}>
         <ScrollView
           contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: spacing.xl }}
           keyboardShouldPersistTaps="handled"
@@ -95,7 +94,7 @@ export default function LoginScreen() {
             />
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </View>
     </Screen>
   );
 }
