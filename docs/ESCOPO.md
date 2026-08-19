@@ -170,13 +170,91 @@ Investimento é um `kind` de lançamento, com categorias próprias (Renda Fixa, 
 - Orçamentos estourando.
 - **Comprometido no futuro** (parcelas + fixos).
 
-**Ciclo:** o "mês" é o **mês do calendário** (dia 1 até o último dia). Ciclo customizado por data de pagamento fica para a v1.1, se incomodar no uso real.
+#### Regra de período — nenhuma janela atravessa o mês 🔑
 
-### 4.11 Aba Lançamentos
+Todo período do dashboard fica **contido dentro de um único mês do calendário**.
+Nunca existe uma janela tipo `25/ago → 25/set`.
+
+| Período | Definição |
+|---|---|
+| **Dia** | um dia |
+| **Semana** | semana do calendário **recortada nas bordas do mês** |
+| **Mês** | dia 1 até o último dia |
+
+**Consequência: semanas de borda são parciais.** Exemplo real, agosto/2026 (começa num sábado, semana iniciando no domingo):
+
+```
+Sem 1   01/ago            →  1 dia   ⚠️ parcial
+Sem 2   02/ago – 08/ago   →  7 dias
+Sem 3   09/ago – 15/ago   →  7 dias
+Sem 4   16/ago – 22/ago   →  7 dias
+Sem 5   23/ago – 29/ago   →  7 dias
+Sem 6   30/ago – 31/ago   →  2 dias  ⚠️ parcial
+```
+
+Isso cria uma armadilha de leitura: gastar R$ 200 numa semana de 2 dias **não** é melhor que R$ 500 numa de 7. Como o app trata:
+
+- Semana parcial exibe o rótulo **`parcial · N dias`**.
+- Em qualquer **comparação** entre janelas de tamanhos diferentes, o app usa **média diária**, não total bruto.
+- A navegação `<` `>` **para na borda do mês**. Para sair do mês, você troca o mês — é um gesto separado e explícito.
+
+**Ciclo:** o "mês" é sempre o **mês do calendário**. Ciclo customizado por data de pagamento fica para a v1.1, se incomodar no uso real.
+
+### 4.11 Comparação entre meses 🔑
+
+Tela própria, alcançável pelo dashboard. Responde: **"estou gastando mais que antes?"**
+
+Você escolhe um **mês de referência** (ex.: 2 meses atrás) e ele é comparado com o mês atual, **alinhado por dia do mês**.
+
+#### Gasto acumulado (visão principal)
+
+```
+R$
+     │                              ⋯⋯ jun (fechou 4.180)
+3k   │                        ⋯⋯⋯⋯⋯
+     │                 ⋯⋯⋯⋯⋯⋯        ── ago (hoje, dia 19)
+2k   │           ⋯⋯⋯⋯──────
+     │      ⋯⋯───────
+1k   │  ⋯───
+     │──
+     └────┬────┬────┬────┬────┬────┬──
+          5   10   15   19   25   31
+                          ▲ hoje
+```
+
+A curva acumulada é a leitura que importa. O gasto de um dia isolado é ruidoso demais — você comprou um mês inteiro de mercado numa terça e o dia parece catástrofe. O acumulado mostra a **tendência**.
+
+- Toggle **Acumulado | Diário** — o diário existe para investigar um dia específico.
+- Tocar num dia abre o comparativo lado a lado: *"dia 10 · ago R$ 340 · jun R$ 180 · **+89%**"*.
+- Filtro por atribuição e por categoria — dá pra comparar só "Mercado" entre os dois meses.
+
+#### Comparação justa ⚠️
+
+O mês atual está incompleto. Comparar agosto-até-o-dia-19 com junho-fechado infla o passado e você conclui errado.
+
+Por padrão o app corta os dois no **mesmo dia**: *"até o dia 19 — ago R$ 2.310 · jun R$ 1.890 · **+22%**"*. O total fechado do mês de referência aparece como linha pontilhada, marcado como **projeção/fechado**, nunca somado à comparação.
+
+**Meses de tamanhos diferentes:** o eixo vai até o maior dos dois; a série do mês mais curto simplesmente termina. Dia 31 comparado com um mês de 30 dias não inventa valor.
+
+#### Comparação de despesas fixas
+
+Mesma lógica aplicada aos recorrentes — aqui é onde mora a assinatura que subiu de preço e ninguém percebeu:
+
+| Fixo | Mês ref. | Mês atual | |
+|---|---|---|---|
+| Aluguel | 1.800,00 | 1.800,00 | — |
+| Netflix | 39,90 | 44,90 | 🔺 +12,5% |
+| Academia | — | 89,00 | 🆕 novo |
+| Spotify | 21,90 | — | ❌ saiu |
+| **Total** | **1.861,80** | **1.933,90** | 🔺 **+3,9%** |
+
+Rodapé: **% da renda comprometido** em cada mês. É a leitura que mostra o cerco se fechando antes de você sentir.
+
+### 4.12 Aba Lançamentos
 
 Lista cronológica, busca por texto, filtros (atribuição / categoria / tipo / autor / forma de pagamento / período). Editar e excluir (soft delete).
 
-### 4.12 Aba IA (Groq) — lê e lança ✅
+### 4.13 Aba IA (Groq) — lê e lança ✅
 
 Chat em linguagem natural sobre os dados do **Espaço ativo**.
 
@@ -207,7 +285,7 @@ Lançamento usa **tool calling**: o modelo devolve uma chamada estruturada `cria
 
 Modelo sugerido: `llama-3.3-70b-versatile` — bom em português, barato, rápido.
 
-### 4.13 Offline ✅
+### 4.14 Offline ✅
 
 Lançar gasto **funciona sem internet**.
 
@@ -219,7 +297,7 @@ Lançar gasto **funciona sem internet**.
 
 > Você vai querer lançar no mercado, no metrô, no estacionamento. Gasto não registrado na hora é gasto perdido.
 
-### 4.14 Notificação diária
+### 4.15 Notificação diária
 
 Lembrete local ("já lançou os gastos de hoje?") em horário configurável.
 Barato de implementar e é o que mantém o hábito vivo.
@@ -285,6 +363,9 @@ ai_messages         id, space_id, user_id, role, content, created_at
 - `id` das transações gerado no **cliente** (uuid v4) para o offline funcionar sem conflito.
 - Soft delete (`deleted_at`) em transações.
 - RLS ligado em **todas** as tabelas, sem exceção. Política base: *"você só enxerga linhas de Espaços onde existe um `space_members` com o seu `user_id`"*.
+- Índice em `transactions (space_id, occurred_at)` — toda query do dashboard e da comparação filtra por essa dupla.
+- Períodos são calculados **sempre no fuso do dispositivo** (`America/Sao_Paulo`), nunca em UTC. Se calcular em UTC, um gasto lançado às 21h do dia 31 cai no mês seguinte e a regra de "não atravessar o mês" quebra silenciosamente.
+- `occurred_at` é `date`, não `timestamp`. O que importa é o dia do gasto, não a hora — e isso elimina a classe inteira de bug de fuso.
 
 ---
 
@@ -314,12 +395,15 @@ ai_messages         id, space_id, user_id, role, content, created_at
 | 0 | Setup Expo + Supabase + Auth + navegação | login funcionando |
 | 1 | Espaços + membros + convite/senha + RLS | isolamento de dados garantido |
 | 2 | Categorias + atribuição + lançamento rápido + lista | **já dá pra usar de verdade** |
-| 3 | Renda somada + Dashboard + as duas pizzas | as respostas aparecem |
+| 3 | Renda somada + Dashboard + as duas pizzas + regra de período | as respostas aparecem |
 | 4 | Recorrentes + parcelamento | fecha o buraco do "pra onde vai" |
-| 5 | Offline / fila de sincronização | o hábito sobrevive ao mundo real |
-| 6 | Orçamentos por categoria | controle |
-| 7 | Chat IA (Edge Function + Groq, ler e lançar) | camada de conversa |
-| 8 | Notificações + export CSV + polimento + build | v1.0 |
+| 5 | Comparação entre meses (acumulado + fixas) | *"estou gastando mais que antes?"* |
+| 6 | Offline / fila de sincronização | o hábito sobrevive ao mundo real |
+| 7 | Orçamentos por categoria | controle |
+| 8 | Chat IA (Edge Function + Groq, ler e lançar) | camada de conversa |
+| 9 | Notificações + export CSV + polimento + build | v1.0 |
+
+> A Fase 5 depende da 4: comparar despesas fixas exige que os recorrentes já existam.
 
 > A partir da **Fase 2** o app já deve estar instalado no seu celular e em uso real.
 > Dados reais desde cedo revelam o que o escopo errou.
@@ -338,6 +422,8 @@ ai_messages         id, space_id, user_id, role, content, created_at
 | 6 | Offline: **sim**, fila local com sincronização |
 | 7 | Investimentos: **só aportes**, sem saldo atual nem rentabilidade |
 | 8 | Ciclo: **mês do calendário** (dia 1 ao último dia) |
+| 9 | Períodos **nunca atravessam o mês** — semana de borda é recortada e marcada como parcial |
+| 10 | Comparação entre meses **alinhada por dia**, cortada no mesmo dia, com curva acumulada |
 
 ---
 
