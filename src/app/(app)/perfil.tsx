@@ -47,9 +47,25 @@ export default function PerfilScreen() {
   };
 
   const toggleReminder = async (value: boolean) => {
-    setReminderOn(value);
-    if (value) await scheduleDailyReminder(reminderHour);
-    else await cancelDailyReminder();
+    if (value) {
+      const result = await scheduleDailyReminder(reminderHour);
+      if (!result.ok) {
+        setReminderOn(false);
+        if (result.reason === 'unsupported') {
+          Alert.alert(
+            'Não disponível no Expo Go',
+            'Notificações locais exigem uma build de desenvolvimento (não funcionam dentro do app Expo Go). O resto do app continua normal.',
+          );
+        } else {
+          Alert.alert('Permissão negada', 'Autorize notificações nas configurações do Android para usar o lembrete.');
+        }
+        return;
+      }
+      setReminderOn(true);
+    } else {
+      setReminderOn(false);
+      await cancelDailyReminder();
+    }
   };
 
   const myShareSetting = members.find((m) => m.id === session?.user.id);
