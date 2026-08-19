@@ -149,6 +149,18 @@ export async function getIncomes(userId: string): Promise<Income[]> {
   return data as Income[];
 }
 
+/**
+ * Rendas de vários usuários de uma vez — usado pelo dashboard para somar a
+ * renda do Espaço. Só devolve o que o RLS libera: a própria renda, mais a
+ * de quem tem share_income=true num Espaço em comum (migration 003).
+ */
+export async function getIncomesForUsers(userIds: string[]): Promise<Income[]> {
+  if (userIds.length === 0) return [];
+  const { data, error } = await supabase.from('incomes').select('*').in('user_id', userIds);
+  if (error) throw error;
+  return data as Income[];
+}
+
 /** Editar salário NÃO reescreve o passado: fecha a vigência atual e abre uma nova. */
 export async function updateIncome(
   userId: string,
@@ -227,6 +239,52 @@ export async function createRecurrence(
 export async function deactivateRecurrence(id: string): Promise<void> {
   const { error } = await supabase.from('recurrences').update({ active: false }).eq('id', id);
   if (error) throw error;
+}
+
+/** Espelha recurrence_date() do Postgres — dia 31 num mês de 30 dias cai no último dia. */
+function recurrenceDateJS(monthFirstISO: string, day: number): string {
+  const [y, m] = monthFirstISO.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  const clamped = Math.min(day, lastDay);
+  return `${y}-${String(m).padStart(2, '0')}-${String(clamped).padStart(2, '0')}`;
+}
+
+/**
+ * "Ainda vai sair esse mês" — ESCOPO §4.10: o `Saiu` do dashboard conta só o
+ * realizado; isto aqui é o que falta: fixas que ainda não venceram + parcelas
+ * futuras já geradas dentro do mês corrente.
+ */
+export async function upcomingThisMonth(
+  spaceId: string,
+  monthRange: { from: string; to: string },
+  monthTxs: TransactionWithEffective[],
+  todayISO: string,
+): Promise<{ count: number; total: number }> {
+  const recs = await getRecurrences(spaceId);
+  let total = 0;
+  let count = 0;
+
+  for (const r of recs) {
+    const occ = recurrenceDateJS(monthRange.from, r.day_of_month);
+    if (
+      occ > todayISO &&
+      occ <= monthRange.to &&
+      r.start_date <= occ &&
+      (!r.end_date || r.end_date >= occ)
+    ) {
+      total += r.amount;
+      count++;
+    }
+  }
+
+  for (const tx of monthTxs) {
+    if (tx.kind === 'expense' && tx.installment_group_id && tx.occurred_at > todayISO) {
+      total += tx.effective_amount;
+      count++;
+    }
+  }
+
+  return { count, total };
 }
 
 // ------------------------------------------------------------- budgets ----

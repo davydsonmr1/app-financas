@@ -51,8 +51,10 @@ export async function generateId(): Promise<string> {
  * fica na fila local e o lançamento já aparece na UI mesmo assim — quem
  * lança no mercado sem sinal não perde o registro.
  */
-export async function enqueueTransaction(tx: Transaction): Promise<{ synced: boolean }> {
-  const queued: QueuedTransaction = { ...tx, _queuedAt: new Date().toISOString() };
+export async function enqueueTransaction(
+  tx: Omit<Transaction, 'deleted_at'>,
+): Promise<{ synced: boolean }> {
+  const queued: QueuedTransaction = { ...tx, deleted_at: null, _queuedAt: new Date().toISOString() };
   const queue = await readQueue();
   await writeQueue([...queue, queued]);
   const result = await syncQueue();

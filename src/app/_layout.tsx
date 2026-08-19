@@ -75,6 +75,10 @@ function RootNavigator() {
         options={{ presentation: 'modal', headerShown: true, title: 'Orçamentos' }}
       />
       <Stack.Screen
+        name="comparacao"
+        options={{ presentation: 'modal', headerShown: true, title: 'Comparar meses' }}
+      />
+      <Stack.Screen
         name="transacao/[id]"
         options={{ presentation: 'modal', headerShown: true, title: 'Lançamento' }}
       />
