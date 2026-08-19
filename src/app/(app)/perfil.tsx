@@ -13,6 +13,7 @@ import {
   getReminderTime,
   scheduleDailyReminder,
 } from '@/lib/notifications';
+import { authenticate, isBiometricEnabled, isBiometricSupported, setBiometricEnabled } from '@/lib/biometric';
 
 export default function PerfilScreen() {
   const t = useTheme();
@@ -25,6 +26,8 @@ export default function PerfilScreen() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [reminderOn, setReminderOn] = useState(false);
   const [reminderHour, setReminderHour] = useState(20);
+  const [biometricOn, setBiometricOn] = useState(false);
+  const [biometricSupported, setBiometricSupported] = useState(true);
 
   useEffect(() => {
     setName(profile?.display_name ?? '');
@@ -35,6 +38,8 @@ export default function PerfilScreen() {
       setReminderOn(h !== null);
       if (h !== null) setReminderHour(h);
     });
+    isBiometricEnabled().then(setBiometricOn);
+    isBiometricSupported().then(setBiometricSupported);
   }, []);
 
   const handleSaveName = async () => {
@@ -67,6 +72,25 @@ export default function PerfilScreen() {
     } else {
       setReminderOn(false);
       await cancelDailyReminder();
+    }
+  };
+
+  const toggleBiometric = async (value: boolean) => {
+    if (value) {
+      if (!biometricSupported) {
+        Alert.alert(
+          'Não disponível neste aparelho',
+          'Nenhuma digital ou desbloqueio biométrico está cadastrado no sistema.',
+        );
+        return;
+      }
+      const result = await authenticate();
+      if (!result.ok) return; // usuário cancelou ou falhou — mantém desligado
+      await setBiometricEnabled(true);
+      setBiometricOn(true);
+    } else {
+      await setBiometricEnabled(false);
+      setBiometricOn(false);
     }
   };
 
@@ -169,6 +193,19 @@ export default function PerfilScreen() {
               </Body>
             </View>
             <Switch value={reminderOn} onValueChange={toggleReminder} />
+          </View>
+        </Card>
+
+        <Card>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: t.text, fontWeight: '600' }}>Entrar com a digital</Text>
+              <Body style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>
+                Pede a digital (ou o desbloqueio do aparelho) toda vez que o app abre — a sessão
+                continua sendo a mesma, isso é só uma trava extra.
+              </Body>
+            </View>
+            <Switch value={biometricOn} onValueChange={toggleBiometric} />
           </View>
         </Card>
 

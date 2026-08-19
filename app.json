@@ -40,7 +40,9 @@
         {
           "photosPermission": "Permita acesso às fotos para escolher uma foto de perfil ou de Espaço."
         }
-      ]
+      ],
+      "expo-web-browser",
+      "expo-local-authentication"
     ],
     "experiments": {
       "typedRoutes": true,

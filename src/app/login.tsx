@@ -1,16 +1,19 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useTheme, spacing } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
-import { Button, Screen, TextField } from '@/components/ui';
+import { Button, Divider, Screen, TextField } from '@/components/ui';
 
 export default function LoginScreen() {
   const t = useTheme();
-  const { signIn } = useAuth();
+  const router = useRouter();
+  const { signIn, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const handleSubmit = async () => {
     setError(null);
@@ -22,6 +25,14 @@ export default function LoginScreen() {
     const err = await signIn(email.trim(), password);
     setLoading(false);
     if (err) setError(traduzErro(err));
+  };
+
+  const handleGoogle = async () => {
+    setError(null);
+    setGoogleLoading(true);
+    const err = await signInWithGoogle();
+    setGoogleLoading(false);
+    if (err) setError(err);
   };
 
   return (
@@ -40,7 +51,7 @@ export default function LoginScreen() {
               Finanças
             </Text>
             <Text style={{ color: t.textMuted, fontSize: 14, marginTop: 4 }}>
-              Controle pessoal — acesso fechado
+              Controle pessoal
             </Text>
           </View>
 
@@ -67,10 +78,21 @@ export default function LoginScreen() {
             {error ? <Text style={{ color: t.negative, fontSize: 13 }}>{error}</Text> : null}
 
             <Button title="Entrar" onPress={handleSubmit} loading={loading} style={{ marginTop: spacing.sm }} />
+            <Button title="Criar conta" onPress={() => router.push('/signup' as any)} variant="ghost" />
 
-            <Text style={{ color: t.textMuted, fontSize: 12, textAlign: 'center', marginTop: spacing.lg }}>
-              Cadastro fechado — sua conta é criada manualmente pelo dono do app.
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginVertical: spacing.xs }}>
+              <View style={{ flex: 1 }}><Divider /></View>
+              <Text style={{ color: t.textMuted, fontSize: 12 }}>ou</Text>
+              <View style={{ flex: 1 }}><Divider /></View>
+            </View>
+
+            <Button
+              title="Entrar com Google"
+              onPress={handleGoogle}
+              loading={googleLoading}
+              variant="secondary"
+              style={{ flexDirection: 'row', gap: spacing.sm } as any}
+            />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

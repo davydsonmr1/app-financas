@@ -22,5 +22,9 @@ export const supabase = createClient(url, anonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // PKCE, não 'implicit' (o padrão da lib) — é o fluxo recomendado pra apps
+    // mobile e o que o login com Google (auth-context.tsx) espera pra trocar
+    // o código de autorização pela sessão via exchangeCodeForSession().
+    flowType: 'pkce',
   },
 });
