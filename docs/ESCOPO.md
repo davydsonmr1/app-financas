@@ -1,6 +1,6 @@
 # Escopo — app-financas v1.0
 
-> **Status:** decisões estruturais fechadas. Pronto para virar schema.
+> **Status:** escopo v1.0 fechado. Pronto para virar schema e Fase 0.
 
 ---
 
@@ -143,13 +143,23 @@ Realidade brasileira: "comprei em 10x de R$ 89".
 
 > Sem isso, o mês parece tranquilo e o dinheiro some.
 
-### 4.8 Orçamento por categoria
+### 4.8 Investimentos — só aportes ✅
+
+Investimento é um `kind` de lançamento, com categorias próprias (Renda Fixa, Ações, FIIs, Cripto, Reserva de emergência).
+
+- Registra **quanto foi aportado**, quando, em qual categoria e por quem.
+- Dashboard: total investido no período, evolução mês a mês, % da renda.
+- **Não** rastreia saldo atual nem rentabilidade — isso exigiria atualização manual constante ou cotação de mercado. Fica para a v1.1.
+
+> A pergunta que o v1.0 responde é *"estou conseguindo guardar alguma coisa?"*, não *"quanto rendeu?"*.
+
+### 4.9 Orçamento por categoria
 
 - Definir teto mensal por categoria (ex.: Lazer = R$ 400).
 - Barra de progresso; muda de cor em 80% e em 100%.
 - Escopo: por atribuição (`Eu`, `Esposa`, `Casa`) ou do Espaço inteiro.
 
-### 4.9 Dashboard (aba Início)
+### 4.10 Dashboard (aba Início)
 
 - Seletor de período: **Dia | Semana | Mês**, com navegação `<` `>`.
 - Filtro por atribuição: **Tudo | Eu | Esposa | Casa**.
@@ -160,11 +170,13 @@ Realidade brasileira: "comprei em 10x de R$ 89".
 - Orçamentos estourando.
 - **Comprometido no futuro** (parcelas + fixos).
 
-### 4.10 Aba Lançamentos
+**Ciclo:** o "mês" é o **mês do calendário** (dia 1 até o último dia). Ciclo customizado por data de pagamento fica para a v1.1, se incomodar no uso real.
+
+### 4.11 Aba Lançamentos
 
 Lista cronológica, busca por texto, filtros (atribuição / categoria / tipo / autor / forma de pagamento / período). Editar e excluir (soft delete).
 
-### 4.11 Aba IA (Groq) — lê e lança ✅
+### 4.12 Aba IA (Groq) — lê e lança ✅
 
 Chat em linguagem natural sobre os dados do **Espaço ativo**.
 
@@ -195,7 +207,7 @@ Lançamento usa **tool calling**: o modelo devolve uma chamada estruturada `cria
 
 Modelo sugerido: `llama-3.3-70b-versatile` — bom em português, barato, rápido.
 
-### 4.12 Offline ✅
+### 4.13 Offline ✅
 
 Lançar gasto **funciona sem internet**.
 
@@ -207,7 +219,7 @@ Lançar gasto **funciona sem internet**.
 
 > Você vai querer lançar no mercado, no metrô, no estacionamento. Gasto não registrado na hora é gasto perdido.
 
-### 4.13 Notificação diária
+### 4.14 Notificação diária
 
 Lembrete local ("já lançou os gastos de hoje?") em horário configurável.
 Barato de implementar e é o que mantém o hábito vivo.
@@ -222,9 +234,10 @@ Barato de implementar e é o que mantém o hábito vivo.
 | iOS | decidido |
 | "Quem deve a quem" | modelo é caixa único; derivável depois |
 | OCR de nota fiscal / foto de cupom | complexo, retorno baixo no início |
-| Rentabilidade automática de investimentos | exige cotação de mercado |
+| Saldo atual e rentabilidade de investimentos | v1.1 — v1.0 registra só aportes |
 | Múltiplas moedas | não precisa |
 | Metas de economia ("juntar R$ 5.000") | v1.1 |
+| Ciclo mensal customizado (dia do pagamento) | v1.1 — calendário resolve por ora |
 | Fatura fechada de cartão (ciclo corte/vencimento) | v1.1 — parcelas resolvem 80% |
 | Web / desktop | não precisa |
 | Criptografia ponta-a-ponta | outro projeto |
@@ -323,3 +336,17 @@ ai_messages         id, space_id, user_id, role, content, created_at
 | 4 | Renda: **soma entre membros** do Espaço, com toggle por membro |
 | 5 | IA: **lê e lança** gastos por texto, sempre com confirmação |
 | 6 | Offline: **sim**, fila local com sincronização |
+| 7 | Investimentos: **só aportes**, sem saldo atual nem rentabilidade |
+| 8 | Ciclo: **mês do calendário** (dia 1 ao último dia) |
+
+---
+
+## 10. Operacional
+
+**Custo: ~R$ 0.** Supabase free tier aguenta 3 usuários com folga; Groq tem free tier generoso. Nada a pagar nesse porte.
+
+**Distribuição:** EAS Build gerando **APK**, instalado direto nos 3 celulares. Sem Play Store — não faz sentido para app fechado e evita semanas de burocracia.
+
+**Locale:** pt-BR, moeda R$, datas `dd/mm`, semana começando no domingo.
+
+**Segredos:** chave do Groq só na Edge Function (Supabase secrets). No app, apenas a `anon key` do Supabase — que é pública por design e só é segura porque o RLS está correto. Por isso o RLS não é opcional em nenhuma tabela.
