@@ -15,7 +15,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.davydson.appfinancas"
+      "package": "com.davydson.appfinancas",
+      "versionCode": 1
     },
     "plugins": [
       "expo-router",
