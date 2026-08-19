@@ -1,3 +1,4 @@
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 
 export type AiProposal = {
@@ -24,7 +25,7 @@ export async function askAi(
   });
 
   if (error) {
-    return { type: 'error', error: traduzErroEdge(error.message) };
+    return { type: 'error', error: await explainEdgeError(error) };
   }
   if (data?.error) {
     return { type: 'error', error: data.error };
@@ -32,12 +33,32 @@ export async function askAi(
   return data as AiResponse;
 }
 
-function traduzErroEdge(msg: string): string {
+/**
+ * supabase-js só dá "Edge Function returned a non-2xx status code" por
+ * padrão — inútil pra depurar. O corpo real da resposta (com a mensagem
+ * que a própria função devolveu, ex: "GROQ_API_KEY não configurada") vem
+ * em `error.context`, um Response bruto que precisa ser lido à parte.
+ */
+async function explainEdgeError(error: unknown): Promise<string> {
+  if (error instanceof FunctionsHttpError) {
+    const status = error.context?.status as number | undefined;
+
+    if (status === 404) {
+      return 'A função ai-chat ainda não foi publicada no Supabase — veja supabase/functions/ai-chat/README.md.';
+    }
+
+    try {
+      const body = await error.context.json();
+      if (body?.error) return `${body.error}${status ? ` (HTTP ${status})` : ''}`;
+    } catch {
+      // corpo não era JSON — segue pro fallback abaixo
+    }
+    return `Erro do servidor (HTTP ${status ?? '?'}). Confira os logs em supabase.com/dashboard → Edge Functions → ai-chat → Logs.`;
+  }
+
+  const msg = error instanceof Error ? error.message : String(error);
   if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
     return 'Sem conexão com o servidor de IA.';
-  }
-  if (msg.includes('404') || msg.includes('not found')) {
-    return 'A função ai-chat ainda não foi publicada no Supabase (veja supabase/functions/ai-chat/README.md).';
   }
   return msg;
 }
