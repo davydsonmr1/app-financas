@@ -161,7 +161,14 @@ export async function getIncomesForUsers(userIds: string[]): Promise<Income[]> {
   return data as Income[];
 }
 
-/** Editar salário NÃO reescreve o passado: fecha a vigência atual e abre uma nova. */
+/**
+ * Editar salário NÃO reescreve o passado: fecha a vigência atual e abre uma
+ * nova a partir de hoje — EXCETO no primeiríssimo cadastro. Se é a primeira
+ * renda que esse usuário registra, ela não "começou hoje": já valia o mês
+ * inteiro, só não tinha sido digitada ainda. Sem essa distinção, cadastrar
+ * o salário no dia 19 fazia o dashboard mostrar só os ~13 dias restantes
+ * rateados (bug real, pego em uso).
+ */
 export async function updateIncome(
   userId: string,
   label: string,
@@ -169,6 +176,7 @@ export async function updateIncome(
 ): Promise<void> {
   const today = new Date();
   const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const firstOfMonthISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
 
   const { data: current } = await supabase
     .from('incomes')
@@ -192,11 +200,27 @@ export async function updateIncome(
       .update({ effective_to: todayISO })
       .eq('id', current[0].id);
     if (closeErr) throw closeErr;
+
+    const { error } = await supabase
+      .from('incomes')
+      .insert({ user_id: userId, label, amount, effective_from: todayISO });
+    if (error) throw error;
+    return;
   }
+
+  // Primeiro cadastro: nunca existiu renda antes para este usuário — vale o
+  // mês inteiro, não só a partir de hoje.
+  const { data: everHad } = await supabase
+    .from('incomes')
+    .select('id')
+    .eq('user_id', userId)
+    .limit(1);
+
+  const effectiveFrom = everHad && everHad.length > 0 ? todayISO : firstOfMonthISO;
 
   const { error } = await supabase
     .from('incomes')
-    .insert({ user_id: userId, label, amount, effective_from: todayISO });
+    .insert({ user_id: userId, label, amount, effective_from: effectiveFrom });
   if (error) throw error;
 }
 
