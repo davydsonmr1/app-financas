@@ -39,7 +39,8 @@ function RootNavigator() {
     if (loading) return;
     const inApp = segments[0] === '(app)';
     if (!session && inApp) router.replace('/login');
-    if (session && (segments[0] === 'login' || (segments[0] as string) === 'signup')) router.replace('/(app)');
+    const publicOnlyRoutes = ['login', 'signup', 'auth-callback'];
+    if (session && publicOnlyRoutes.includes(segments[0] as string)) router.replace('/(app)');
   }, [session, loading, segments, router]);
 
   const checkLock = useCallback(async () => {
@@ -76,6 +77,7 @@ function RootNavigator() {
       <Stack.Screen name="(app)" />
       <Stack.Screen name="login" />
       <Stack.Screen name="signup" />
+      <Stack.Screen name="auth-callback" />
       <Stack.Screen
         name="espacos"
         options={{ presentation: 'modal', headerShown: true, title: 'Meus espaços' }}
