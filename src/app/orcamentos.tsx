@@ -61,8 +61,8 @@ export default function OrcamentosScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm, paddingBottom: 40 }}>
-        <Body style={{ fontSize: 12, color: t.textMuted, marginBottom: spacing.sm }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: 40 }}>
+        <Body style={{ fontSize: 12, color: t.textMuted, marginBottom: spacing.xs }}>
           Defina um teto mensal por categoria. A barra muda de cor perto do limite.
         </Body>
 
@@ -73,7 +73,7 @@ export default function OrcamentosScreen() {
           const barColor = pct >= 1 ? t.negative : pct >= 0.8 ? t.warn : t.positive;
 
           return (
-            <Card key={c.id}>
+            <Card key={c.id} style={{ gap: spacing.sm }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
                   <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: c.color }} />
@@ -87,25 +87,27 @@ export default function OrcamentosScreen() {
               </View>
 
               {budget ? (
-                <View style={{ height: 8, backgroundColor: t.surfaceAlt, borderRadius: 4, marginTop: spacing.sm, overflow: 'hidden' }}>
+                <View style={{ height: 8, backgroundColor: t.surfaceAlt, borderRadius: 4, overflow: 'hidden' }}>
                   <View style={{ height: '100%', width: `${pct * 100}%`, backgroundColor: barColor, borderRadius: 4 }} />
                 </View>
               ) : null}
 
               {editing === c.id ? (
-                <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
-                  <TextField value={amountStr} onChangeText={setAmountStr} keyboardType="decimal-pad" placeholder="0,00" style={{ flex: 1 }} />
+                <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
+                  <TextField value={amountStr} onChangeText={setAmountStr} keyboardType="decimal-pad" placeholder="0,00" style={{ flex: 1 }} autoFocus />
                   <Button title="OK" onPress={() => handleSave(c.id)} loading={saving} />
                 </View>
               ) : (
-                <Chip
-                  label={budget ? 'Alterar teto' : 'Definir teto'}
-                  selected={false}
-                  onPress={() => {
-                    setEditing(c.id);
-                    setAmountStr(budget ? String(budget.amount).replace('.', ',') : '');
-                  }}
-                />
+                <View style={{ flexDirection: 'row' }}>
+                  <Chip
+                    label={budget ? 'Alterar teto' : 'Definir teto'}
+                    selected={false}
+                    onPress={() => {
+                      setEditing(c.id);
+                      setAmountStr(budget ? String(budget.amount).replace('.', ',') : '');
+                    }}
+                  />
+                </View>
               )}
             </Card>
           );

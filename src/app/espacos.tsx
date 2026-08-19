@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Image, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ScrollView, Share, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useTheme, spacing, radius } from '@/constants/theme';
 import { useSpace, type SpaceWithRole } from '@/lib/space-context';
-import { Body, Button, Card, Label, Screen, TextField } from '@/components/ui';
+import { Body, Button, Card, Screen, TextField } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { pickAndUploadImage } from '@/lib/storage';
 
@@ -32,6 +32,13 @@ export default function EspacosScreen() {
     } finally {
       setUploadingFor(null);
     }
+  };
+
+  const handleShare = async (space: SpaceWithRole) => {
+    const senha = space.has_password ? ' (peça a senha comigo)' : '';
+    await Share.share({
+      message: `Entra no meu Espaço "${space.name}" no app Finanças! Código de convite: ${space.invite_code}${senha}`,
+    });
   };
 
   return (
@@ -98,13 +105,36 @@ export default function EspacosScreen() {
                       router.back();
                     }}
                   >
-                    <Text style={{ color: t.text, fontWeight: '600', fontSize: 15 }}>{s.name}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                      <Text style={{ color: t.text, fontWeight: '600', fontSize: 15 }}>{s.name}</Text>
+                      {s.id === activeSpace?.id ? (
+                        <Ionicons name="checkmark-circle" size={16} color={t.primary} />
+                      ) : null}
+                    </View>
                     <Text style={{ color: t.textMuted, fontSize: 12 }}>
                       {s.is_personal ? 'Pessoal' : s.role === 'owner' ? 'Você criou' : 'Membro'}
                     </Text>
+                    {!s.is_personal ? (
+                      <Text style={{ color: t.textMuted, fontSize: 11, marginTop: 2, letterSpacing: 1 }}>
+                        Código: {s.invite_code}
+                      </Text>
+                    ) : null}
                   </View>
-                  {s.id === activeSpace?.id ? (
-                    <Ionicons name="checkmark-circle" size={22} color={t.primary} />
+                  {!s.is_personal ? (
+                    <View style={{ flexDirection: 'row', gap: spacing.md }}>
+                      <Ionicons
+                        name="copy-outline"
+                        size={19}
+                        color={t.textMuted}
+                        onPress={() => Clipboard.setStringAsync(s.invite_code)}
+                      />
+                      <Ionicons
+                        name="share-social-outline"
+                        size={19}
+                        color={t.textMuted}
+                        onPress={() => handleShare(s)}
+                      />
+                    </View>
                   ) : null}
                 </View>
               ))}
@@ -114,36 +144,6 @@ export default function EspacosScreen() {
               <Button title="Criar Espaço" onPress={() => setMode('create')} variant="secondary" style={{ flex: 1 }} />
               <Button title="Entrar com código" onPress={() => setMode('join')} variant="secondary" style={{ flex: 1 }} />
             </View>
-
-            {activeSpace && !activeSpace.is_personal ? (
-              <Card>
-                <Label>Convidar para "{activeSpace.name}"</Label>
-                <Body style={{ marginTop: 4, fontSize: 13 }}>
-                  Compartilhe o código abaixo e a senha (se você definiu uma) com quem vai entrar.
-                </Body>
-                <View
-                  style={{
-                    marginTop: spacing.sm,
-                    backgroundColor: t.surfaceAlt,
-                    borderRadius: radius.sm,
-                    padding: spacing.md,
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ color: t.text, fontWeight: '700', fontSize: 18, letterSpacing: 2 }}>
-                    {activeSpace.invite_code}
-                  </Text>
-                  <Ionicons
-                    name="copy-outline"
-                    size={20}
-                    color={t.primary}
-                    onPress={() => Clipboard.setStringAsync(activeSpace.invite_code)}
-                  />
-                </View>
-              </Card>
-            ) : null}
           </>
         )}
 
