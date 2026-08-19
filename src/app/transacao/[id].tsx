@@ -5,6 +5,7 @@ import { useTheme, spacing } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
 import { useSpace } from '@/lib/space-context';
 import { Body, Button, Card, Chip, Divider, Label, Screen, TextField } from '@/components/ui';
+import { SelectField } from '@/components/select-field';
 import { supabase } from '@/lib/supabase';
 import { addRefund, getCategories, softDeleteTransaction } from '@/lib/queries';
 import { formatBRL } from '@/lib/dashboard-calc';
@@ -50,6 +51,10 @@ export default function TransacaoDetalheScreen() {
   const categoriesForKind = useMemo(
     () => categories.filter((c) => c.kind === tx?.kind),
     [categories, tx],
+  );
+  const categoryOptions = useMemo(
+    () => categoriesForKind.map((c) => ({ key: c.id, label: c.name, color: c.color })),
+    [categoriesForKind],
   );
 
   const memberLabel = (userId: string | null) => {
@@ -137,14 +142,7 @@ export default function TransacaoDetalheScreen() {
         <TextField label="Descrição" value={description} onChangeText={setDescription} />
         <TextField label="Valor (bruto)" value={amountStr} onChangeText={setAmountStr} keyboardType="decimal-pad" />
 
-        <View>
-          <Label style={{ marginBottom: spacing.xs }}>Categoria</Label>
-          <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
-            {categoriesForKind.map((c) => (
-              <Chip key={c.id} label={c.name} color={c.color} selected={categoryId === c.id} onPress={() => setCategoryId(c.id)} />
-            ))}
-          </View>
-        </View>
+        <SelectField label="Categoria" value={categoryId} options={categoryOptions} onChange={setCategoryId} placeholder="Escolher categoria" />
 
         {tx.kind !== 'income' && (
           <View>

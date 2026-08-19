@@ -87,8 +87,19 @@ export async function createInstallments(input: {
   const rows: Transaction[] = [];
   const [y, m, d] = input.firstOccurredAt.split('-').map(Number);
 
+  // Regra do usuário: a 1ª parcela nunca cai no mês da compra — sempre no
+  // seguinte. `m` (mês da compra, 1-indexado) usado direto como índice
+  // 0-based do Date já representa "mês seguinte" (ex: compra em agosto,
+  // mês=8 1-indexado → índice 8 0-based = setembro).
+  //
+  // Dia é CLAMPADO ao último dia do mês-alvo, nunca deixado estourar: uma
+  // compra no dia 31 não pode virar "3 de março" só porque fevereiro tem
+  // 28 dias (o Date nativo do JS faz esse overflow sozinho se a gente
+  // deixar) — isso jogaria duas parcelas no mesmo mês.
   for (let i = 0; i < input.installments; i++) {
-    const date = new Date(y, m - 1 + i, d);
+    const lastDayOfTargetMonth = new Date(y, m + i + 1, 0).getDate();
+    const clampedDay = Math.min(d, lastDayOfTargetMonth);
+    const date = new Date(y, m + i, clampedDay);
     const occurred_at = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     rows.push({
       id: await input.makeId(),

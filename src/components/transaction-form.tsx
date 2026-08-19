@@ -5,12 +5,15 @@ import { useTheme, spacing } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
 import { useSpace } from '@/lib/space-context';
 import { Button, Card, Chip, Label, TextField } from '@/components/ui';
+import { SelectField } from '@/components/select-field';
+import { DateField, type DateMode } from '@/components/date-field';
 import { getCategories, createInstallments } from '@/lib/queries';
 import { enqueueTransaction, generateId } from '@/lib/offline-queue';
 import { todayISO } from '@/lib/period';
 import { PAYMENT_LABELS, type Category, type PaymentMethod, type TransactionKind } from '@/lib/types';
 
 const PAYMENT_METHODS: PaymentMethod[] = ['pix', 'debit', 'credit', 'cash', 'boleto'];
+const MONTH_NAMES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
 /**
  * Formulário de lançamento rápido — usado pela tela Despesas (kind fixo em
@@ -30,7 +33,7 @@ export function TransactionForm({ kind, onSaved }: { kind: TransactionKind; onSa
     kind === 'expense' ? params.categoryId : undefined,
   );
   const [description, setDescription] = useState('');
-  const [dateMode, setDateMode] = useState<'today' | 'yesterday' | 'custom'>('today');
+  const [dateMode, setDateMode] = useState<DateMode>('today');
   const [customDate, setCustomDate] = useState(todayISO());
   const [payment, setPayment] = useState<PaymentMethod>('pix');
   const [installments, setInstallments] = useState(false);
@@ -48,6 +51,10 @@ export function TransactionForm({ kind, onSaved }: { kind: TransactionKind; onSa
   }, [kind]);
 
   const categoriesForKind = useMemo(() => categories.filter((c) => c.kind === kind), [categories, kind]);
+  const categoryOptions = useMemo(
+    () => categoriesForKind.map((c) => ({ key: c.id, label: c.name, color: c.color })),
+    [categoriesForKind],
+  );
 
   useEffect(() => {
     if (categoryId && !categoriesForKind.find((c) => c.id === categoryId)) setCategoryId(undefined);
@@ -58,6 +65,13 @@ export function TransactionForm({ kind, onSaved }: { kind: TransactionKind; onSa
     if (dateMode === 'yesterday') return shiftDay(todayISO(), -1);
     return customDate;
   }, [dateMode, customDate]);
+
+  /** Regra do usuário: parcelamento sempre começa no mês SEGUINTE ao lançamento. */
+  const firstInstallmentMonthLabel = useMemo(() => {
+    const [y, m] = occurredAt.split('-').map(Number);
+    const next = new Date(y, m, 1); // m já é o índice 0-based do mês seguinte
+    return `${MONTH_NAMES[next.getMonth()]}/${next.getFullYear()}`;
+  }, [occurredAt]);
 
   const amount = useMemo(() => {
     const normalized = amountStr.replace(/\./g, '').replace(',', '.');
@@ -166,26 +180,16 @@ export function TransactionForm({ kind, onSaved }: { kind: TransactionKind; onSa
         </View>
       ) : null}
 
-      <View>
-        <Label style={{ marginBottom: spacing.xs }}>Categoria</Label>
-        <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
-          {categoriesForKind.map((c) => (
-            <Chip key={c.id} label={c.name} color={c.color} selected={categoryId === c.id} onPress={() => setCategoryId(c.id)} />
-          ))}
-        </View>
-      </View>
+      <SelectField label="Categoria" value={categoryId} options={categoryOptions} onChange={setCategoryId} placeholder="Escolher categoria" />
 
-      <View>
-        <Label style={{ marginBottom: spacing.xs }}>Data</Label>
-        <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
-          <Chip label="Hoje" selected={dateMode === 'today'} onPress={() => setDateMode('today')} />
-          <Chip label="Ontem" selected={dateMode === 'yesterday'} onPress={() => setDateMode('yesterday')} />
-          <Chip label="Escolher" selected={dateMode === 'custom'} onPress={() => setDateMode('custom')} />
-        </View>
-        {dateMode === 'custom' ? (
-          <TextField value={customDate} onChangeText={setCustomDate} placeholder="aaaa-mm-dd" style={{ marginTop: spacing.sm }} />
-        ) : null}
-      </View>
+      <DateField
+        mode={dateMode}
+        customDate={customDate}
+        onChange={(mode, date) => {
+          setDateMode(mode);
+          setCustomDate(date);
+        }}
+      />
 
       {kind !== 'income' ? (
         <View>
@@ -206,13 +210,18 @@ export function TransactionForm({ kind, onSaved }: { kind: TransactionKind; onSa
             onPress={() => setInstallments((v) => !v)}
           />
           {installments ? (
-            <TextField
-              label="Número de parcelas"
-              value={installmentCount}
-              onChangeText={setInstallmentCount}
-              keyboardType="number-pad"
-              style={{ marginTop: spacing.sm, maxWidth: 120 }}
-            />
+            <View style={{ marginTop: spacing.sm }}>
+              <TextField
+                label="Número de parcelas"
+                value={installmentCount}
+                onChangeText={setInstallmentCount}
+                keyboardType="number-pad"
+                style={{ maxWidth: 120 }}
+              />
+              <Text style={{ color: t.textMuted, fontSize: 12, marginTop: spacing.xs }}>
+                1ª parcela em {firstInstallmentMonthLabel} — parcelamento sempre começa no mês seguinte.
+              </Text>
+            </View>
           ) : null}
         </View>
       ) : null}

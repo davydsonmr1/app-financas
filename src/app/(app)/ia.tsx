@@ -133,7 +133,7 @@ export default function IaChatScreen() {
 
   return (
     <Screen>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         {messages.length === 0 ? (
           <View style={{ padding: spacing.lg, gap: spacing.sm }}>
             <Body style={{ color: t.textMuted }}>Pergunte sobre seus gastos ou lance algo por texto:</Body>

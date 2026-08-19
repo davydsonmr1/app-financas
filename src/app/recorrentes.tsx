@@ -5,6 +5,7 @@ import { useTheme, spacing, radius } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
 import { useSpace } from '@/lib/space-context';
 import { Body, Button, Card, Chip, Label, Screen, TextField } from '@/components/ui';
+import { SelectField } from '@/components/select-field';
 import { createRecurrence, deactivateRecurrence, getCategories, getIncomesForUsers, getRecurrences, type Recurrence } from '@/lib/queries';
 import { formatBRL, formatPct, incomeForRange } from '@/lib/dashboard-calc';
 import { monthRange, todayISO } from '@/lib/period';
@@ -143,11 +144,14 @@ export default function RecorrentesScreen() {
             <TextField label="Dia do mês" value={day} onChangeText={setDay} keyboardType="number-pad" style={{ width: 100 }} />
           </View>
 
-          <Label style={{ marginTop: spacing.sm, marginBottom: spacing.xs }}>Categoria</Label>
-          <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
-            {categories.filter((c) => c.kind === 'expense').map((c) => (
-              <Chip key={c.id} label={c.name} color={c.color} selected={categoryId === c.id} onPress={() => setCategoryId(c.id)} />
-            ))}
+          <View style={{ marginTop: spacing.sm }}>
+            <SelectField
+              label="Categoria"
+              value={categoryId}
+              options={categories.filter((c) => c.kind === 'expense').map((c) => ({ key: c.id, label: c.name, color: c.color }))}
+              onChange={setCategoryId}
+              placeholder="Escolher categoria"
+            />
           </View>
 
           {attributionOptions.length > 0 ? (
