@@ -55,6 +55,19 @@ Um **Espaço** é um contexto financeiro isolado. Um usuário participa de vári
 
 Isso não é criptografia — quem tem acesso ao painel do Supabase lê tudo. Aceito para o v1.0 (é o dono do app).
 
+#### Como o ingresso funciona sem vazar o hash ✅
+
+Existe uma armadilha aqui: para entrar, você precisa validar a senha de um Espaço do qual **ainda não é membro** — mas o RLS bloqueia justamente isso. A saída ingênua seria liberar leitura da tabela `spaces`, o que exporia o `password_hash` de todos os Espaços para qualquer usuário logado.
+
+Solução:
+
+- A tabela `spaces` é **ilegível para não-membros**. Sem exceção.
+- Entrar é uma função `SECURITY DEFINER` — `join_space(invite_code, password)` — que valida internamente e devolve só sucesso ou falha. O hash nunca sai do banco.
+- Hash com `bcrypt` (extensão `pgcrypto`), nunca texto puro.
+- Rate limit por usuário para não virar alvo de força bruta.
+
+**Onboarding dos 3 usuários:** contas criadas manualmente no painel do Supabase (signup público desativado). Para 3 pessoas, um fluxo de convite por e-mail seria construir um aeroporto para receber um visitante.
+
 ---
 
 ## 4. Escopo v1.0
@@ -73,6 +86,17 @@ Isso não é criptografia — quem tem acesso ao painel do Supabase lê tudo. Ac
 - **Num Espaço compartilhado, as rendas dos membros somam** e formam a renda do Espaço.
   Controlado por um toggle por membro: *"somar minha renda neste Espaço"* (padrão: ligado).
   → No Espaço da Casa fica ligado. No Espaço da viagem com a amiga, desligado.
+
+#### ⚠️ Dois caminhos para dinheiro entrando — regra anti-duplicidade
+
+| Onde | O quê |
+|---|---|
+| `incomes` | renda **recorrente esperada** — salário, aposentadoria, aluguel recebido |
+| `transactions kind=income` | entrada **avulsa** — freela, venda, presente, 13º |
+
+**Salário nunca é lançado como transação.** Sem essa regra, o "Entrou" conta o salário duas vezes já no primeiro mês.
+
+`Entrou` = rendas vigentes no mês (dos membros com `share_income`) **+** receitas avulsas do período.
 
 ### 4.3 Lançamentos
 
@@ -93,6 +117,19 @@ Campos: valor, **atribuição**, categoria, data, descrição, forma de pagament
 - Data pré-preenchida com "hoje".
 - Em Espaço de 1 pessoa o seletor de atribuição **não aparece**.
 - Salvar → volta pro dashboard. **3 toques.**
+
+#### Reembolso ✅
+
+Você paga R$ 200 no restaurante, alguém te devolve R$ 100.
+
+O reembolso é **abatido do gasto original**, não lançado como receita:
+
+- No lançamento existe a ação **"registrar reembolso"** → valor + data.
+- `Restaurante` passa a contar **R$ 100 líquidos** em todos os gráficos e orçamentos.
+- O detalhe do lançamento mostra `R$ 200,00 − R$ 100,00 reembolsado = R$ 100,00`.
+- Reembolso parcial ou total; pode haver mais de um.
+
+> Se fosse lançado como receita, a pizza mostraria R$ 200 em Restaurante e você concluiria que gasta mais do que gasta naquela categoria. A pizza honesta é o motivo do app existir.
 
 ### 4.4 Caixa único e atribuição 🔑
 
@@ -124,14 +161,35 @@ Se um terceiro membro entrar, ele vira opção sozinho.
 - Categorias de investimento separadas (Renda Fixa, Ações, FIIs, Cripto, Reserva de emergência).
 - Arquivar em vez de deletar — não quebra o histórico.
 
+**As categorias padrão são copiadas para dentro de cada Espaço na criação**, nunca compartilhadas globalmente. Se fossem globais, renomear "Lazer" no Espaço da Casa renomearia no Espaço da amiga junto. Não existe `space_id = null`.
+
 ### 4.6 Gastos fixos / recorrentes 🔑
 
 Aluguel, Netflix, academia, internet, seguro.
 
-- Cadastra uma vez com dia do mês → o app gera o lançamento automaticamente (com atribuição fixa).
+- Cadastra uma vez com dia do mês → o lançamento é gerado automaticamente (com atribuição fixa).
 - Tela **"Meus fixos"**: soma total dos recorrentes e **quanto % da renda já está comprometido antes de gastar qualquer coisa**.
 
 > Essa tela sozinha costuma responder metade do "pra onde vai meu dinheiro".
+
+#### A geração roda no servidor ✅
+
+`pg_cron` no Supabase, diariamente, **não** no app.
+
+- Se rodasse no app, você não abrir por uma semana = fixas faltando no dashboard.
+- Com dois celulares abrindo junto, o aluguel entraria duplicado.
+- **Idempotência obrigatória:** índice único em `(recurrence_id, competencia)`. Rodar o job duas vezes no mesmo dia não pode gerar dois lançamentos.
+- Dia 31 em mês de 30 dias → cai no **último dia do mês**.
+
+#### Edição: só daqui pra frente ✅
+
+Netflix subiu de R$ 39,90 para R$ 44,90. Você edita o recorrente:
+
+- Os lançamentos **já gerados permanecem intactos** (R$ 39,90 no passado).
+- A mudança vale do **mês corrente em diante**.
+- Desativar um recorrente **não apaga** o histórico — só para de gerar.
+
+> Isso é o que faz a comparação de fixas (4.11) ter sentido. Se a edição fosse retroativa, o aumento sumiria do gráfico e você nunca veria que a assinatura subiu.
 
 ### 4.7 Parcelamento no cartão 🔑
 
@@ -142,6 +200,18 @@ Realidade brasileira: "comprei em 10x de R$ 89".
 - Dashboard mostra **"já comprometido nos próximos meses"**.
 
 > Sem isso, o mês parece tranquilo e o dinheiro some.
+
+#### Editar e excluir parcelamento ✅
+
+Mesma regra dos fixos: **do mês corrente em diante**.
+
+| Ação | Efeito |
+|---|---|
+| Editar valor/categoria | vale para as parcelas **futuras**; as pagas ficam como estão |
+| Excluir uma parcela | apaga só aquela |
+| Excluir o parcelamento | apaga as parcelas **futuras**; as passadas permanecem |
+
+O detalhe de cada parcela sempre mostra o contexto: `Sofá · 3/10 · compra em 12/06`.
 
 ### 4.8 Investimentos — só aportes ✅
 
@@ -163,12 +233,38 @@ Investimento é um `kind` de lançamento, com categorias próprias (Renda Fixa, 
 
 - Seletor de período: **Dia | Semana | Mês**, com navegação `<` `>`.
 - Filtro por atribuição: **Tudo | Eu | Esposa | Casa**.
-- Cards do topo: Entrou (renda somada) · Saiu · Investido · **Sobra** (com % da renda).
+- Cards do topo: **Entrou · Saiu · Investido · Sobra** (com % da renda).
 - **Pizza por categoria** — tocar na fatia abre a lista daquela categoria.
 - **Pizza por atribuição** — quanto foi meu, dela, da casa.
 - Top 5 categorias com variação vs. período anterior (↑ ↓).
 - Orçamentos estourando.
 - **Comprometido no futuro** (parcelas + fixos).
+
+#### A fórmula da Sobra ✅
+
+```
+Sobra  =  Entrou  −  Despesas  −  Investido
+```
+
+O investimento **desconta** da sobra, porque o dinheiro não está mais na conta. Mas ele tem card próprio, apresentado como conquista e nunca somado às despesas nem à pizza de gastos.
+
+> A alternativa (`Sobra = Entrou − Despesas`) mostraria R$ 800 de sobra que já estão travados no CDB — e você gastaria em cima de dinheiro que não tem.
+
+#### Realizado ≠ previsto ✅
+
+No dia 10, o `Saiu` conta **só o que já aconteceu**. O aluguel que vence dia 20 ainda não entrou nessa conta.
+
+O que está por vir aparece num card separado:
+
+```
+┌──────────────────────────────┐
+│  Ainda vai sair esse mês     │
+│  R$ 1.240,00                 │
+│  3 fixas · 2 parcelas        │
+└──────────────────────────────┘
+```
+
+Assim o gráfico diário e semanal não ganham um pico de aluguel que ainda não aconteceu — e você continua vendo o compromisso chegando.
 
 #### Regra de período — nenhuma janela atravessa o mês 🔑
 
@@ -335,16 +431,20 @@ spaces              id, name, icon, color, owner_id, password_hash,
 
 space_members       space_id, user_id, role, share_income, joined_at
 
-categories          id, space_id(null=padrão), name, icon, color,
+categories          id, space_id, name, icon, color,
                     kind, archived_at
+                    -- copiadas por Espaço na criação; NUNCA space_id null
 
 transactions        id, space_id,
                     user_id,          -- quem REGISTROU
                     attributed_to,    -- a quem PERTENCE (null = Casa)
                     category_id, kind, amount, description, occurred_at,
                     payment_method, installment_group_id, installment_no,
-                    installment_total, recurrence_id,
+                    installment_total, recurrence_id, competencia,
                     created_at, updated_at, deleted_at, synced_at
+
+refunds             id, transaction_id, amount, occurred_at, created_at
+                    -- abate do gasto original; pode haver vários
 
 recurrences         id, space_id, attributed_to, category_id, amount,
                     description, payment_method, day_of_month,
@@ -366,6 +466,10 @@ ai_messages         id, space_id, user_id, role, content, created_at
 - Índice em `transactions (space_id, occurred_at)` — toda query do dashboard e da comparação filtra por essa dupla.
 - Períodos são calculados **sempre no fuso do dispositivo** (`America/Sao_Paulo`), nunca em UTC. Se calcular em UTC, um gasto lançado às 21h do dia 31 cai no mês seguinte e a regra de "não atravessar o mês" quebra silenciosamente.
 - `occurred_at` é `date`, não `timestamp`. O que importa é o dia do gasto, não a hora — e isso elimina a classe inteira de bug de fuso.
+- **Índice único `(recurrence_id, competencia)`** — é o que impede o `pg_cron` de duplicar o aluguel se o job rodar duas vezes.
+- **Valor efetivo de uma despesa** = `amount − soma(refunds)`. Todo gráfico, orçamento e comparação usa o valor efetivo, nunca o bruto.
+- Conflito de sincronização: **last-write-wins** por `updated_at`; exclusão vence empate.
+- `spaces` **não é legível** por não-membros. Ingresso só via `join_space()` (`SECURITY DEFINER`), com hash `bcrypt` via `pgcrypto`.
 
 ---
 
@@ -424,6 +528,16 @@ ai_messages         id, space_id, user_id, role, content, created_at
 | 8 | Ciclo: **mês do calendário** (dia 1 ao último dia) |
 | 9 | Períodos **nunca atravessam o mês** — semana de borda é recortada e marcada como parcial |
 | 10 | Comparação entre meses **alinhada por dia**, cortada no mesmo dia, com curva acumulada |
+| 11 | Recorrentes gerados no **servidor** (`pg_cron`), idempotentes por `(recurrence_id, competencia)` |
+| 12 | Editar fixo ou parcelamento vale **do mês corrente em diante** — passado preservado |
+| 13 | `Sobra = Entrou − Despesas − Investido`; investido tem card próprio |
+| 14 | `Saiu` conta **só o realizado**; o que falta aparece em "ainda vai sair esse mês" |
+| 15 | Reembolso **abate do gasto original**; gráficos usam valor efetivo |
+| 16 | Salário mora em `incomes`; **nunca** é lançado como transação |
+| 17 | Categorias padrão **copiadas por Espaço**, sem categoria global |
+| 18 | Ingresso via `join_space()` `SECURITY DEFINER`; `spaces` ilegível para não-membros |
+| 19 | Sync: **last-write-wins** por `updated_at`, exclusão vence empate |
+| 20 | Contas dos 3 usuários criadas **à mão** no painel do Supabase |
 
 ---
 
