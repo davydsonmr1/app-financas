@@ -379,7 +379,7 @@ A Edge Function não manda o banco inteiro pro modelo. Ela roda queries agregada
 
 Lançamento usa **tool calling**: o modelo devolve uma chamada estruturada `criar_lancamento(...)`, o app renderiza o card de confirmação, e só o toque do usuário grava.
 
-Modelo sugerido: `llama-3.3-70b-versatile` — bom em português, barato, rápido.
+Modelo: `openai/gpt-oss-120b` — o Groq descontinuou a família Llama de propósito geral em 2026; este é o modelo de produção equivalente hoje (barato, rápido, com tool-calling).
 
 ### 4.14 Offline ✅
 

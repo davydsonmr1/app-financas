@@ -26,7 +26,12 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const GROQ_MODEL = 'llama-3.3-70b-versatile';
+// O Groq descontinuou a família Llama de propósito geral (nem em produção
+// nem em preview, confirmado em console.groq.com/docs/models em ago/2026).
+// gpt-oss-120b é o modelo de produção equivalente hoje: grande, rápido,
+// barato ($0.15/$0.60 por milhão de tokens) e com tool-calling — o que a
+// proposta de lançamento por texto (propose_transaction) exige.
+const GROQ_MODEL = 'openai/gpt-oss-120b';
 
 const PROPOSE_TOOL = {
   type: 'function',
